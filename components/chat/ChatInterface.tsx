@@ -12,6 +12,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import type { Message, ChatSession, Language } from '@/types';
 
 const STORAGE_KEY = 'hr-chatbot-sessions';
+const ACTIVE_KEY = 'hr-chatbot-active';
 
 function loadSessions(): ChatSession[] {
   if (typeof window === 'undefined') return [];
@@ -24,6 +25,15 @@ function loadSessions(): ChatSession[] {
 
 function saveSessions(sessions: ChatSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+}
+
+function saveActiveId(id: string) {
+  localStorage.setItem(ACTIVE_KEY, id);
+}
+
+function loadActiveId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(ACTIVE_KEY);
 }
 
 function newSession(language: Language): ChatSession {
@@ -50,13 +60,28 @@ export default function ChatInterface() {
     const stored = loadSessions();
     if (stored.length > 0) {
       setSessions(stored);
-      setActiveId(stored[0].id);
+      // Restore the last active session; fall back to most recently updated
+      const savedId = loadActiveId();
+      const exists = savedId && stored.some((s) => s.id === savedId);
+      if (exists) {
+        setActiveId(savedId);
+      } else {
+        const latest = [...stored].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+        setActiveId(latest.id);
+      }
     } else {
       const s = newSession('en');
       setSessions([s]);
       setActiveId(s.id);
     }
   }, []);
+
+  // Persist the active session ID whenever it changes
+  useEffect(() => {
+    if (activeId) saveActiveId(activeId);
+  }, [activeId]);
 
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
 
